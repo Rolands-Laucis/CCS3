@@ -73,8 +73,8 @@ def visualize_scanpath(image_path, scanpaths, save_path):
     plt.imshow(img)
     
     for seq, base_color, label, _, lw in scanpaths:
-        # Override alpha to 0.7 as requested
-        alpha = 0.4
+        # Override alpha
+        alpha = 0.5
         
         # Denormalize x, y
         # Assuming normalized to [0, 1]
@@ -87,19 +87,19 @@ def visualize_scanpath(image_path, scanpaths, save_path):
         
         # Generate gradient colors
         n_points = len(x)
-        colors = create_gradient_colors(base_color, n_points, hue_shift=0.15)
+        colors = create_gradient_colors(base_color, n_points, hue_shift=0.1)
         
         # Plot segments
         for i in range(n_points - 1):
             plt.plot(x[i:i+2], y[i:i+2], color=colors[i], linewidth=lw, alpha=alpha)
             
         # Plot points (smaller size)
-        plt.scatter(x, y, c=colors, s=15, alpha=alpha, zorder=10)
+        plt.scatter(x, y, c=colors, s=5, alpha=alpha, zorder=10)
         
         # Mark start (triangle) - smaller
-        plt.plot(x[0], y[0], color=colors[0], marker='^', markersize=7, markeredgecolor='white', alpha=alpha, zorder=11)
+        plt.plot(x[0], y[0], color=colors[0], marker='^', markersize=10, markeredgecolor='white', alpha=alpha, zorder=11)
         # Mark end (square) - smaller
-        plt.plot(x[-1], y[-1], color=colors[-1], marker='s', markersize=7, markeredgecolor='white', alpha=alpha, zorder=11)
+        plt.plot(x[-1], y[-1], color=colors[-1], marker='s', markersize=10, markeredgecolor='white', alpha=alpha, zorder=11)
         
         # Dummy plot for legend
         plt.plot([], [], color=base_color, linewidth=lw, label=label, alpha=alpha)
@@ -107,7 +107,7 @@ def visualize_scanpath(image_path, scanpaths, save_path):
     # Only show unique labels in legend (smaller and tighter)
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), fontsize=8, framealpha=0.7)
+    plt.legend(by_label.values(), by_label.keys(), fontsize=8, framealpha=1)
     
     plt.axis('off')
     plt.tight_layout()
@@ -128,9 +128,9 @@ def main():
     parser.add_argument('--save_dir', type=str, default='results/decode', 
                         help='Directory to save visualizations')
     parser.add_argument('--seq_len', type=int, default=22, 
-                        help='Sequence length for decoding (default: 50)')
-    parser.add_argument('--n_neighbors', type=int, default=3, 
-                        help='Number of neighbors to visualize (default: 3)')
+                        help='Sequence length for decoding (default: 22)')
+    parser.add_argument('--n_neighbors', type=int, default=10, 
+                        help='Number of neighbors to visualize')
     parser.add_argument('--fixations_path', type=str, default='data/fixations.mat',
                         help='Path to fixations.mat file')
     
@@ -220,74 +220,68 @@ def main():
         n_vis = min(args.n_neighbors, len(cluster_points))
         closest_local_indices = np.argsort(distances)[:n_vis]
         closest_global_indices = cluster_indices[closest_local_indices]
-        closest_vectors = latent_data[closest_global_indices]
-        
-        print(f"Decoding centroid and {n_vis} neighbors...")
-        
+
         # Decode centroid
         decoded_centroid = decode_vector(model, centroid, args.seq_len, device)
         
-        # Decode neighbors
-        decoded_neighbors = []
-        for vec in closest_vectors:
-            decoded_neighbors.append(decode_vector(model, vec, args.seq_len, device))
+        # Iterate over the nearest neighbors to generate visualizations
+        for rank, global_idx in enumerate(closest_global_indices):
+            # Get metadata for this specific point
+            if global_idx < len(metadata):
+                meta_row = metadata.iloc[global_idx]
+                image_name = meta_row['image']
+                # Try to get subject_id, default to None if not found
+                subject_id = meta_row.get('subject_id', None) 
+                if subject_id is None:
+                     # Fallback for column naming variations
+                     subject_id = meta_row.get('subject', None)
+            else:
+                print(f"Index {global_idx} out of bounds for metadata.")
+                continue
+
+            print(f"  Neighbor {rank+1}: Image={image_name}, Subject={subject_id}")
             
-        # Select a random image from this cluster
-        # We pick a random member of the cluster to use their image as background
-        random_idx = np.random.choice(cluster_indices)
-        
-        # Handle case where metadata might be shorter or misaligned (though it shouldn't be)
-        if random_idx < len(metadata):
-            image_name = metadata.iloc[random_idx]['image']
-        else:
-            print("Index out of bounds for metadata. Using first image.")
-            image_name = metadata.iloc[0]['image']
+            image_path = os.path.join(args.image_dir, image_name)
             
-        image_path = os.path.join(args.image_dir, image_name)
-        print(f"Selected background image: {image_name}")
-        
-        # Prepare scanpaths for visualization
-        # List of (sequence, color, label, alpha, linewidth)
-        scanpaths_to_plot = []
-        
-        # Add neighbors first (so they are behind centroid)
-        # for i, seq in enumerate(decoded_neighbors):
-        #     scanpaths_to_plot.append((seq, 'cyan', 'Neighbor', 0.4, 1.0))
+            scanpaths_to_plot = []
             
-        # Add Original Scanpath (Green)
-        if image_name in image_scanpaths:
-            # Get first subject (assuming sorted or just taking first in list)
-            # The list from parse_fixations is appended in order of processing, which usually follows subject ID
-            orig_seqs = image_scanpaths[image_name]
-            if orig_seqs:
-                # Find subject 0 or just take the first one
-                first_seq_data = orig_seqs[0]
-                first_seq = first_seq_data['sequence'] # (len, 5) [x, y, dur, amp, ang]
+            # 1. Add Original Scanpath for this specific subject (Green)
+            if image_name in image_scanpaths:
+                # Find the specific subject's sequence
+                found_subject = False
+                if subject_id is not None:
+                    for seq_data in image_scanpaths[image_name]:
+                        # Compare subject_ids (handle potential type mismatch str vs int)
+                        if str(seq_data['subject_id']) == str(subject_id):
+                            orig_seq = seq_data['sequence']
+                            
+                            # Normalize
+                            try:
+                                with Image.open(image_path) as img:
+                                    w, h = img.size
+                                norm_seq = orig_seq.copy()
+                                norm_seq[:, 0] = norm_seq[:, 0] / w
+                                norm_seq[:, 1] = norm_seq[:, 1] / h
+                                
+                                scanpaths_to_plot.append((norm_seq, 'lime', f'Participant {subject_id}', 0.8, 1.5))
+                                found_subject = True
+                                break
+                            except Exception as e:
+                                print(f"    Failed to load image for normalization: {e}")
                 
-                # Normalize coordinates for visualization
-                try:
-                    with Image.open(image_path) as img:
-                        w, h = img.size
-                    
-                    norm_seq = first_seq.copy()
-                    # Normalize x and y
-                    norm_seq[:, 0] = norm_seq[:, 0] / w
-                    norm_seq[:, 1] = norm_seq[:, 1] / h
-                    
-                    scanpaths_to_plot.append((norm_seq, 'lime', 'Original (Subj 1)', 0.8, 1.5))
-                    print(f"Added original scanpath for subject {first_seq_data['subject_id']}")
-                except Exception as e:
-                    print(f"Failed to load image for normalization: {e}")
+                if not found_subject:
+                    print(f"    Warning: Original scanpath for subject {subject_id} on {image_name} not found in fixations.")
+
+            # 2. Add centroid (Red, thick, on top)
+            scanpaths_to_plot.append((decoded_centroid, 'red', f'centroid {cluster_id + 1}', 1.0, 2.0))
             
-        # Add centroid (Red, thick, on top)
-        scanpaths_to_plot.append((decoded_centroid, 'red', 'Centroid', 1.0, 2.0))
+            # Visualize
+            image_base_name = os.path.splitext(image_name)[0]
+            # Include rank in filename to distinguish multiple neighbors
+            save_name = f"cluster_dim{latent_dim}_k{cluster_id}_n{rank+1}_{image_base_name}.png"
+            save_path = os.path.join(args.save_dir, save_name)
             
-        # Visualize
-        image_base_name = os.path.splitext(image_name)[0]
-        save_name = f"cluster_dim{latent_dim}_k{cluster_id}_{image_base_name}.png"
-        save_path = os.path.join(args.save_dir, save_name)
-        
-        visualize_scanpath(image_path, scanpaths_to_plot, save_path)
+            visualize_scanpath(image_path, scanpaths_to_plot, save_path)
 
     print("\nDone!")
 

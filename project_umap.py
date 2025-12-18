@@ -34,17 +34,15 @@ def main():
         return
 
     print("Running UMAP dimensionality reduction...")
-    reducer = umap.UMAP(n_components=2, random_state=42)
+    reducer = umap.UMAP(n_components=2)
     embedding = reducer.fit_transform(X)
     
     print("Plotting results...")
-    plt.figure(figsize=(12, 10))
-    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='viridis', s=10, alpha=0.7)
-    plt.colorbar(scatter, label='Cluster Label')
-    plt.title('UMAP Projection of Clusters', fontsize=16)
-    plt.xlabel('UMAP 1', fontsize=12)
-    plt.ylabel('UMAP 2', fontsize=12)
+    plt.rcParams.update({'font.size': 8})
+    plt.figure(figsize=(3, 3))
+    scatter = plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='viridis', s=3, alpha=0.7)
     plt.grid(True, alpha=0.3)
+    plt.tight_layout()
     
     # Determine save path
     base_name = os.path.splitext(args.input_file)[0]

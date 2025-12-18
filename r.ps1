@@ -11,8 +11,9 @@
 # python cluster.py --latent_dim 16 --k 3 --representations_path "models/autoencoder" --save_path "results/clusters/autoencoder"
 # python cluster.py --latent_dim 16 --k 4 --representations_path "models/autoencoder" --save_path "results/clusters/autoencoder"
 
-python project_umap.py "results\clusters\autoencoder\clusters_dim16_silhouette_k2.npy"
-python project_umap.py "results\clusters\baseline\clusters_dim5_silhouette_k2.npy"
+# python project_umap.py "results\clusters\autoencoder\clusters_dim16_silhouette_k2.npy"
+# python project_umap.py "results\clusters\autoencoder\clusters_dim16_silhouette_k4.npy"
+# python project_umap.py "results\clusters\baseline\clusters_dim5_silhouette_k2.npy"
 
 # python evaluation.py --cluster_file "results/clusters/baseline/clusters_dim5_silhouette_k2.npy" 
 # python evaluation.py --cluster_file "results/clusters/autoencoder/clusters_dim16_silhouette_k2.npy"
