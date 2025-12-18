@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
@@ -108,6 +109,15 @@ def main():
     X = np.load(rep_file)
     print(f"Loaded representations shape: {X.shape}")
     
+    # Load metadata
+    metadata_file = f"{args.representations_path}/representations_dim{args.latent_dim}_metadata.csv"
+    if os.path.exists(metadata_file):
+        metadata = pd.read_csv(metadata_file)
+        print(f"Loaded metadata shape: {metadata.shape}")
+    else:
+        print(f"Warning: Metadata file not found at {metadata_file}")
+        metadata = None
+    
     # Create save directory
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
@@ -156,12 +166,29 @@ def main():
         print(f"  Cluster {cluster}: {count} samples ({100*count/len(labels):.1f}%)")
     
     # Save results
-    np.save(f"{args.save_path}/labels_dim{args.latent_dim}_{args.method}_k{optimal_k}.npy", labels)
-    np.save(f"{args.save_path}/centroids_dim{args.latent_dim}_{args.method}_k{optimal_k}.npy", kmeans.cluster_centers_)
+    results = {
+        'data': X,
+        'centroids': kmeans.cluster_centers_,
+        'labels': labels
+    }
+
+    if metadata is not None:
+        # Add cluster labels to metadata
+        results_df = metadata.copy()
+        results_df['cluster'] = labels
+        
+        # Save detailed CSV with metadata and clusters
+        csv_save_file = f"{args.save_path}/clusters_dim{args.latent_dim}_{args.method}_k{optimal_k}_metadata.csv"
+        results_df.to_csv(csv_save_file, index=False)
+        print(f"Detailed results with metadata saved to: {csv_save_file}")
+        
+        # Also add to the numpy results dictionary
+        results['metadata'] = metadata.to_dict(orient='records')
+    save_file = f"{args.save_path}/clusters_dim{args.latent_dim}_{args.method}_k{optimal_k}.npy"
+    np.save(save_file, results)
     
-    print(f"\nResults saved to: {args.save_path}")
-    print(f"  - labels_dim{args.latent_dim}_{args.method}_k{optimal_k}.npy")
-    print(f"  - centroids_dim{args.latent_dim}_{args.method}_k{optimal_k}.npy")
+    print(f"\nResults saved to: {save_file}")
+    print("File contains dictionary with keys: 'data', 'centroids', 'labels'")
 
 
 if __name__ == "__main__":

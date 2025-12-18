@@ -2,6 +2,9 @@ data/*
 !data/.gitkeep
 results/*
 !results/.gitkeep
+!results/clusters/.gitkeep
+!results/eval/.gitkeep
+!results/decode/.gitkeep
 models/*
 !models/.gitkeep
 !models/autoencoder/.gitkeep
@@ -66,4 +69,3 @@ tmp/
 # Experiment outputs
 experiments/*/output/
 *.pdf
-*.csv

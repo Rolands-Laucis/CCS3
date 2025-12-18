@@ -11,7 +11,7 @@ from datetime import datetime
 class GRUAutoencoder(nn.Module):
     """GRU-based autoencoder for temporal fixation sequences."""
     
-    def __init__(self, input_dim=5, hidden_dim=64, latent_dim=8, num_layers=1):
+    def __init__(self, input_dim=5, hidden_dim=128, latent_dim=16, num_layers=1):
         super(GRUAutoencoder, self).__init__()
         
         self.input_dim = input_dim
@@ -211,8 +211,13 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), model_save_path)
     np.save(os.path.join(args.save_path, f"representations_dim{args.latent_dim}.npy"), representations)
     
+    # Save metadata
+    metadata_path = os.path.join(args.save_path, f"representations_dim{args.latent_dim}_metadata.csv")
+    metadata.to_csv(metadata_path, index=False)
+    print(f"Metadata saved to {metadata_path}")
+    
     # Log run to CSV
-    csv_path = os.path.join(args.save_path, "runs.csv")
+    csv_path = os.path.join(args.save_path, "autoencoder_experimental_runs.csv")
     csv_exists = os.path.exists(csv_path)
     
     with open(csv_path, 'a', newline='') as f:
