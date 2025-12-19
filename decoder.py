@@ -74,7 +74,7 @@ def visualize_scanpath(image_path, scanpaths, save_path):
     
     for seq, base_color, label, _, lw in scanpaths:
         # Override alpha
-        alpha = 0.5
+        alpha = 0.7
         
         # Denormalize x, y
         # Assuming normalized to [0, 1]
@@ -87,7 +87,7 @@ def visualize_scanpath(image_path, scanpaths, save_path):
         
         # Generate gradient colors
         n_points = len(x)
-        colors = create_gradient_colors(base_color, n_points, hue_shift=0.1)
+        colors = create_gradient_colors(base_color, n_points, hue_shift=0.12)
         
         # Plot segments
         for i in range(n_points - 1):
@@ -97,9 +97,9 @@ def visualize_scanpath(image_path, scanpaths, save_path):
         plt.scatter(x, y, c=colors, s=5, alpha=alpha, zorder=10)
         
         # Mark start (triangle) - smaller
-        plt.plot(x[0], y[0], color=colors[0], marker='^', markersize=10, markeredgecolor='white', alpha=alpha, zorder=11)
+        plt.plot(x[0], y[0], color=colors[0], marker='^', markersize=10, alpha=alpha, zorder=11)
         # Mark end (square) - smaller
-        plt.plot(x[-1], y[-1], color=colors[-1], marker='s', markersize=10, markeredgecolor='white', alpha=alpha, zorder=11)
+        plt.plot(x[-1], y[-1], color=colors[-1], marker='s', markersize=10, alpha=alpha, zorder=11)
         
         # Dummy plot for legend
         plt.plot([], [], color=base_color, linewidth=lw, label=label, alpha=alpha)
@@ -246,6 +246,7 @@ def main():
             scanpaths_to_plot = []
             
             # 1. Add Original Scanpath for this specific subject (Green)
+            factual_length = args.seq_len
             if image_name in image_scanpaths:
                 # Find the specific subject's sequence
                 found_subject = False
@@ -254,6 +255,7 @@ def main():
                         # Compare subject_ids (handle potential type mismatch str vs int)
                         if str(seq_data['subject_id']) == str(subject_id):
                             orig_seq = seq_data['sequence']
+                            factual_length = len(orig_seq)
                             
                             # Normalize
                             try:
@@ -272,7 +274,13 @@ def main():
                 if not found_subject:
                     print(f"    Warning: Original scanpath for subject {subject_id} on {image_name} not found in fixations.")
 
-            # 2. Add centroid (Red, thick, on top)
+            # 2. Add decoded neighbor vector
+            neighbor_vector = latent_data[global_idx]
+            decoded_neighbor = decode_vector(model, neighbor_vector, args.seq_len, device)
+            decoded_neighbor = decoded_neighbor[:factual_length]
+            scanpaths_to_plot.append((decoded_neighbor, 'blue', f'nn-{rank+1} repr', 0.8, 1.5))
+
+            # 3. Add centroid (Red, thick, on top)
             scanpaths_to_plot.append((decoded_centroid, 'red', f'centroid {cluster_id + 1}', 1.0, 2.0))
             
             # Visualize

@@ -7,12 +7,12 @@ from sklearn.metrics import silhouette_score
 import os
 
 
-def find_optimal_k_elbow(X, k_range, random_state=42):
+def find_optimal_k_elbow(X, k_range):
     """Find optimal k using elbow method (inertia)."""
     inertias = []
     
     for k in k_range:
-        kmeans = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+        kmeans = KMeans(n_clusters=k, n_init=10, random_state=42)
         kmeans.fit(X)
         inertias.append(kmeans.inertia_)
     
@@ -28,12 +28,12 @@ def find_optimal_k_elbow(X, k_range, random_state=42):
     return optimal_k, inertias
 
 
-def find_optimal_k_silhouette(X, k_range, random_state=42):
+def find_optimal_k_silhouette(X, k_range):
     """Find optimal k using silhouette score."""
     silhouette_scores = []
     
     for k in k_range:
-        kmeans = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+        kmeans = KMeans(n_clusters=k, n_init=10)
         labels = kmeans.fit_predict(X)
         score = silhouette_score(X, labels)
         silhouette_scores.append(score)
@@ -95,8 +95,6 @@ def main():
                         help='Path to representations directory')
     parser.add_argument('--save_path', type=str, default='results/clusters',
                         help='Path to save clustering results')
-    parser.add_argument('--random_state', type=int, default=42,
-                        help='Random state for reproducibility')
     args = parser.parse_args()
     
     # Load representations
@@ -134,12 +132,12 @@ def main():
         print(f"Testing k in range [{args.k_min}, {args.k_max}]")
         
         if args.method == 'silhouette':
-            optimal_k, scores = find_optimal_k_silhouette(X, k_range, args.random_state)
+            optimal_k, scores = find_optimal_k_silhouette(X, k_range)
             plot_silhouette(k_range, scores, optimal_k, 
                            f"{args.save_path}/silhouette_dim{args.latent_dim}.png")
             print(f"\nSilhouette scores: {dict(zip(k_range, [f'{s:.4f}' for s in scores]))}")
         else:
-            optimal_k, inertias = find_optimal_k_elbow(X, k_range, args.random_state)
+            optimal_k, inertias = find_optimal_k_elbow(X, k_range)
             plot_elbow(k_range, inertias, optimal_k,
                       f"{args.save_path}/elbow_dim{args.latent_dim}.png")
             print(f"\nInertias: {dict(zip(k_range, [f'{i:.2f}' for i in inertias]))}")
@@ -148,7 +146,7 @@ def main():
     
     # Perform final clustering
     print(f"\nRunning K-means with k = {optimal_k}...")
-    kmeans = KMeans(n_clusters=optimal_k, random_state=args.random_state, n_init=10)
+    kmeans = KMeans(n_clusters=optimal_k, n_init=10)
     labels = kmeans.fit_predict(X)
     
     # Compute final metrics

@@ -11,29 +11,45 @@ from datetime import datetime
 class GRUAutoencoder(nn.Module):
     """GRU-based autoencoder for temporal fixation sequences."""
     
-    def __init__(self, input_dim=5, hidden_dim=128, latent_dim=16, num_layers=1):
+    def __init__(self, input_dim=5, hidden_dim=128, latent_dim=16):
         super(GRUAutoencoder, self).__init__()
         
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
-        self.num_layers = num_layers
         
         # Encoder
-        self.encoder_gru = nn.GRU(
+        # Layer 1: input_dim -> hidden_dim
+        self.encoder_gru1 = nn.GRU(
             input_size=input_dim,
             hidden_size=hidden_dim,
-            num_layers=num_layers,
+            num_layers=1,
             batch_first=True
         )
-        self.encoder_fc = nn.Linear(hidden_dim, latent_dim)
+        # Layer 2: hidden_dim -> hidden_dim // 2
+        self.encoder_gru2 = nn.GRU(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim // 2,
+            num_layers=1,
+            batch_first=True
+        )
+        self.encoder_fc = nn.Linear(hidden_dim // 2, latent_dim)
         
         # Decoder
-        self.decoder_fc = nn.Linear(latent_dim, hidden_dim)
-        self.decoder_gru = nn.GRU(
-            input_size=hidden_dim,
+        self.decoder_fc = nn.Linear(latent_dim, hidden_dim // 2)
+        
+        # Layer 1: hidden_dim // 2 -> hidden_dim // 2
+        self.decoder_gru1 = nn.GRU(
+            input_size=hidden_dim // 2,
+            hidden_size=hidden_dim // 2,
+            num_layers=1,
+            batch_first=True
+        )
+        # Layer 2: hidden_dim // 2 -> hidden_dim
+        self.decoder_gru2 = nn.GRU(
+            input_size=hidden_dim // 2,
             hidden_size=hidden_dim,
-            num_layers=num_layers,
+            num_layers=1,
             batch_first=True
         )
         self.output_fc = nn.Linear(hidden_dim, input_dim)
@@ -41,20 +57,28 @@ class GRUAutoencoder(nn.Module):
     def encode(self, x):
         """Encode input sequence to latent representation."""
         # x: (batch, seq_len, input_dim)
-        _, h_n = self.encoder_gru(x)
-        # h_n: (num_layers, batch, hidden_dim) -> take last layer
-        h_n = h_n[-1]  # (batch, hidden_dim)
+        out1, _ = self.encoder_gru1(x)
+        # out1: (batch, seq_len, hidden_dim)
+        
+        _, h_n = self.encoder_gru2(out1)
+        # h_n: (1, batch, hidden_dim // 2)
+        
+        h_n = h_n[-1]  # (batch, hidden_dim // 2)
         z = self.encoder_fc(h_n)  # (batch, latent_dim)
         return z
     
     def decode(self, z, seq_len):
         """Decode latent representation back to sequence."""
         # z: (batch, latent_dim)
-        h = self.decoder_fc(z)  # (batch, hidden_dim)
+        h = self.decoder_fc(z)  # (batch, hidden_dim // 2)
+        
         # Repeat for each timestep
-        h_repeated = h.unsqueeze(1).repeat(1, seq_len, 1)  # (batch, seq_len, hidden_dim)
-        decoded, _ = self.decoder_gru(h_repeated)  # (batch, seq_len, hidden_dim)
-        output = self.output_fc(decoded)  # (batch, seq_len, input_dim)
+        h_repeated = h.unsqueeze(1).repeat(1, seq_len, 1)  # (batch, seq_len, hidden_dim // 2)
+        
+        out1, _ = self.decoder_gru1(h_repeated)  # (batch, seq_len, hidden_dim // 2)
+        out2, _ = self.decoder_gru2(out1)  # (batch, seq_len, hidden_dim)
+        
+        output = self.output_fc(out2)  # (batch, seq_len, input_dim)
         return output
     
     def forward(self, x):
@@ -180,8 +204,7 @@ if __name__ == "__main__":
     model = GRUAutoencoder(
         input_dim=5,
         hidden_dim=args.hidden_dim,
-        latent_dim=args.latent_dim,
-        num_layers=1
+        latent_dim=args.latent_dim
     )
     
     losses = train_autoencoder(
